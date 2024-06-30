@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continuous Speech-to-Text Translation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <h1>Continuous Speech-to-Text Translation</h1>
+    <button id="start-record-btn">Start Recording</button>
+    <button id="stop-record-btn" style="display: none;">Stop Recording</button>
+    <div id="result">
+        <h2>Recognized Text:</h2>
+        <p id="recognized-text"></p>
+        <h2>Translated Text:</h2>
+        <p id="translated-text"></p>
+        <audio id="translated-audio" controls></audio>
+    </div>
+
+    <label for="input-lang-select">Select Input Language:</label>
+    <select id="input-lang-select">
+        <option value="en-US">English</option>
+        <option value="fr-FR">French</option>
+        <option value="es-ES">Spanish</option>
+        <option value="de-DE">German</option>
+        <option value="hi-IN">Hindi</option>
+        <!-- Add more options for additional languages as needed -->
+    </select>
+
+    <label for="lang-select">Select Target Language:</label>
+    <select id="lang-select">
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="de">German</option>
+        <option value="hi">Hindi</option>
+        <!-- Add more options for additional languages as needed -->
+    </select>
+
+    <script>
+        let recognition;
+        let recording = false;
+        let lastTranscript = '';
+
+        function initializeRecognition() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            const inputLang = document.getElementById('input-lang-select').value;
+            recognition.lang = inputLang;
+            recognition.continuous = true;
+            recognition.interimResults = false;
+
+            recognition.onresult = function(event) {
+                let transcript = event.results[event.resultIndex][0].transcript.trim();
+                if (transcript && transcript !== lastTranscript) {
+                    lastTranscript = transcript;
+                    document.getElementById('recognized-text').innerText = transcript;
+                    translateText(transcript);
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error('Speech recognition error', event.error);
+            };
+        }
+
+        function startRecording() {
+            if (!recording) {
+                initializeRecognition();
+                recognition.start();
+                recording = true;
+                document.getElementById('start-record-btn').style.display = 'none';
+                document.getElementById('stop-record-btn').style.display = 'inline-block';
+            }
+        }
+
+        function stopRecording() {
+            if (recording) {
+                // Uncomment the next line if you want to stop recognition explicitly
+                // recognition.stop();
+                recording = false;
+                document.getElementById('start-record-btn').style.display = 'inline-block';
+                document.getElementById('stop-record-btn').style.display = 'none';
+                lastTranscript = '';
+            }
+        }
+
+        document.getElementById('start-record-btn').addEventListener('click', startRecording);
+        document.getElementById('stop-record-btn').addEventListener('click', stopRecording);
+
+        function translateText(text) {
+            let lang = document.getElementById('lang-select').value;
+            $.ajax({
+                type: 'POST',
+                url: '/translate',
+                contentType: 'application/json',
+                data: JSON.stringify({ text: text, lang: lang }),
+                success: function(response) {
+                    if (response.translated_text) {
+                        document.getElementById('translated-text').innerText = response.translated_text;
+                        convertTextToSpeech(response.translated_text, lang);
+                    } else {
+                        document.getElementById('translated-text').innerText = 'Translation failed';
+                    }
+                },
+                error: function(error) {
+                    console.error('Error:', error);
+                    document.getElementById('translated-text').innerText = 'Translation failed';
+                }
+            });
+        }
+
+        function convertTextToSpeech(text, lang) {
+            $.ajax({
+                type: 'POST',
+                url: '/text-to-speech',
+                contentType: 'application/json',
+                data: JSON.stringify({ text: text, lang: lang }),
+                success: function(response) {
+                    if (response.audio_url) {
+                        let audioElement = document.getElementById('translated-audio');
+                        audioElement.src = response.audio_url;
+                        audioElement.play();
+                    } else {
+                        console.error('Text-to-speech conversion failed');
+                    }
+                },
+                error: function(error) {
+                    console.error('Error:', error);
+                }
+            });
+        }
+
+        // Uncomment this block if you want to stop recognition explicitly when audio plays
+        /*
+        document.getElementById('translated-audio').addEventListener('play', function() {
+            stopRecording();
+        });
+        */
+    </script>
+</body>
+</html>
