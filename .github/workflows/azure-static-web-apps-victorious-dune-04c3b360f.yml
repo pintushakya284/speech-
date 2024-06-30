@@ -36,3 +36,4 @@ jobs:
           api_location: ""
           output_location: ""
           app_artifact_location: "static.zip"
+          deployment_action: "deploy"  # Ensure this line is added
